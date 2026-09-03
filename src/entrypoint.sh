@@ -33,6 +33,8 @@ CHART_VERSION=${13}
 INDEX_DIR=${14}
 ENTERPRISE_URL=${15}
 DEPENDENCIES=${16}
+#Extra field to limit search of locate function
+SUBPATH=${17}
 
 CHARTS=()
 CHARTS_TMP_DIR=$(mktemp -d)
@@ -105,7 +107,11 @@ main() {
 
 locate() {
   for dir in $(find "${CHARTS_DIR}" -type d -mindepth 1 -maxdepth 1); do
-    if [[ -f "${dir}/Chart.yaml" ]]; then
+    #e.g charts/argocd-rbac--> argocd-rbac
+    chart_name="$(echo "$dir" | cut -d / -f 2)"
+    #Add only the directory of the changed chart
+    echo "Chart name is ${chart_name} and supbath is  ${SUBPATH}"
+    if [[ -f "${dir}/Chart.yaml" && ${chart_name} == ${SUBPATH} ]]; then
       CHARTS+=("${dir}")
       echo "Found chart directory ${dir}"
     else
@@ -170,11 +176,16 @@ upload() {
   tmpDir=$(mktemp -d)
   pushd $tmpDir >& /dev/null
 
-  git clone ${REPO_URL}
+  #Shallow clone because repo got big.
+  git clone ${REPO_URL} --depth 1
   cd ${REPOSITORY}
   git config user.name "${COMMIT_USERNAME}"
   git config user.email "${COMMIT_EMAIL}"
   git remote set-url origin ${REPO_URL}
+  #Track the "gh-pages" branch.
+  git remote set-branches origin ${BRANCH}
+  #Shallow fetch because repo got big
+  git fetch --depth 1 origin ${BRANCH}
   git checkout ${BRANCH}
 
   charts=$(cd ${CHARTS_TMP_DIR} && ls *.tgz | xargs)
